@@ -1,8 +1,7 @@
-#include "main3.h"
+#include "main5.h"
 
 using namespace std;
 
-// [초기화] 3개의 영화관 정보 세팅
 void MovieSystem::init() {
     theaters = {
         {1, "Jaws", {"1000", "1400", "1700"}},
@@ -10,7 +9,6 @@ void MovieSystem::init() {
         {3, "Big", {"0900", "1300", "1700"}}
     };
 
-    // 각 상영시간별 10x10 좌석을 0(공석)으로 자동 초기화
     for (auto& t : theaters) {
         for (const auto& time : t.showtimes) {
             t.seats[time] = SeatGrid{};
@@ -18,7 +16,6 @@ void MovieSystem::init() {
     }
 }
 
-// [검색] 번호 또는 제목으로 영화관 찾기 (ranges 활용)
 Theater* MovieSystem::findTheater(const string& query) {
     auto it = ranges::find_if(theaters, [&query](const Theater& t) {
         return to_string(t.id) == query || t.title == query;
@@ -26,7 +23,6 @@ Theater* MovieSystem::findTheater(const string& query) {
     return it != theaters.end() ? &(*it) : nullptr;
 }
 
-// [d 명령어] 영화관 정보 출력
 void MovieSystem::cmdDisplay() {
     for (const auto& t : theaters) {
         cout << t.id << " " << t.title;
@@ -35,7 +31,6 @@ void MovieSystem::cmdDisplay() {
     }
 }
 
-// [p 명령어] 좌석 상태 출력 (빈 좌석과 예약 좌석 구분)
 void MovieSystem::cmdPrintSeats() {
     string query;
     cin >> query;
@@ -48,16 +43,24 @@ void MovieSystem::cmdPrintSeats() {
         const auto& grid = t->seats[time];
         for (int i = 0; i < ROWS; ++i) {
             for (int j = 0; j < COLS; ++j) {
-                if (grid[i][j] == 0) cout << ".  "; // 빈 좌석
-                else cout << grid[i][j] << " ";     // 2자리 예약 번호
+                if (grid[i][j] == 0) cout << ".  ";
+                else cout << grid[i][j] << " ";
             }
             cout << "\n";
         }
     }
 }
 
-// [r 명령어] 예약하기
+// [r 명령어] 예약하기 (요구사항 흐름 완벽 반영)
 void MovieSystem::cmdReserve() {
+    int numSeats;
+
+    // 💡 [수정됨] r을 누르자마자 가장 먼저 좌석 개수를 물어보도록 맨 위로 배치
+    cout << "how many seats?: (1 ~ 4) "; cin >> numSeats;
+    if (numSeats < 1 || numSeats > 4) {
+        cout << ">> You can only reserve 1 to 4 seats at a time.\n"; return;
+    }
+
     string query, time;
     int row, col;
 
@@ -75,47 +78,65 @@ void MovieSystem::cmdReserve() {
         cout << ">> Invalid seat range.\n"; return;
     }
 
-    if (t->seats[time][row][col] != 0) {
-        cout << ">> Seat already reserved!\n"; return;
+    // 💡 [예외처리 1] 예약 좌석의 개수가 한 열의 숫자인 10을 넘었을 경우
+    if (col + numSeats > COLS) {
+        cout << ">> Cannot reserve: Not enough seats in this row (Exceeds 10 columns).\n"; return;
     }
 
-    // 2자리 숫자 배당 및 예약 처리
+    // 💡 [예외처리 2 & 3] 처음부터 예약된 좌석이거나, 여러 자리 중 일부가 이미 예약된 경우
+    for (int i = 0; i < numSeats; ++i) {
+        if (t->seats[time][row][col + i] != 0) {
+            cout << ">> Cannot reserve: Seat (" << row << ", " << col + i << ") is already reserved!\n";
+            return; // 하나라도 이미 예약되어 있다면 전체 예약을 즉시 취소
+        }
+    }
+
+    // 모든 예외 검사를 통과했으므로 좌석 배열에 동일한 예약 번호 배당
     int resNum = nextResNum++;
-    t->seats[time][row][col] = resNum;
-    reservations[resNum] = { t->id, t->title, time, row, col };
+    for (int i = 0; i < numSeats; ++i) {
+        t->seats[time][row][col + i] = resNum;
+    }
+
+    reservations[resNum] = { t->id, t->title, time, row, col, numSeats };
 
     cout << "\nReservation:\n"
         << "Movie name: " << t->title << "\n"
         << "Time: " << time << "\n"
-        << "Seat number: (" << row << ", " << col << ")\n"
-        << "Your reservation number is " << resNum << ". Thank you for your reservation!\n";
+        << "Seat numbers: ";
+    for (int i = 0; i < numSeats; ++i) {
+        cout << "(" << row << ", " << col + i << ") "; // 3x4, 3x5 형태로 출력
+    }
+    cout << "\nYour reservation number is " << resNum << ". Thank you for your reservation!\n";
 }
 
-// [c 명령어] 취소하기 (예약 번호 기반)
+// [c 명령어] 취소하기 (다중 좌석 일괄 취소)
 void MovieSystem::cmdCancel() {
     int resNum;
     cout << "Enter the reservation number: "; cin >> resNum;
 
-    // map 컨테이너의 특징을 활용해 반복문 없이 즉시 검색
-    if (!reservations.contains(resNum)) { // C++20 contains
+    if (!reservations.contains(resNum)) {
         cout << ">> Reservation not found.\n"; return;
     }
 
     ReservationInfo info = reservations[resNum];
     Theater* t = findTheater(to_string(info.theaterId));
 
-    // 좌석 공석으로 원상복구 후 예약 기록 삭제
-    t->seats[info.showtime][info.row][info.col] = 0;
+    // 해당 예약 번호가 가진 좌석 개수(numSeats)만큼 반복하며 일괄 공석(0) 처리
+    for (int i = 0; i < info.numSeats; ++i) {
+        t->seats[info.showtime][info.row][info.col + i] = 0;
+    }
     reservations.erase(resNum);
 
     cout << "\nYour reservation information is:\n"
         << "Movie name: " << info.movieTitle << "\n"
         << "Time: " << info.showtime << "\n"
-        << "Seat number: (" << info.row << ", " << info.col << ")\n"
-        << "Reservation is cancelled. Please, come again!\n";
+        << "Seat numbers: ";
+    for (int i = 0; i < info.numSeats; ++i) {
+        cout << "(" << info.row << ", " << info.col + i << ") ";
+    }
+    cout << "\nReservation is cancelled. Please, come again!\n";
 }
 
-// [h 명령어] 예약률 출력
 void MovieSystem::cmdRate() {
     int totalSeats = ROWS * COLS;
 
@@ -124,7 +145,6 @@ void MovieSystem::cmdRate() {
         for (const auto& time : t.showtimes) {
             const auto& grid = t.seats.at(time);
 
-            // ranges::count_if를 사용해 예약된(0이 아닌) 좌석 수 카운트
             int booked = 0;
             for (const auto& row : grid) {
                 booked += ranges::count_if(row, [](int seat) { return seat != 0; });
@@ -137,7 +157,6 @@ void MovieSystem::cmdRate() {
     }
 }
 
-// 메인 실행 루프
 void MovieSystem::run() {
     init();
     while (true) {
@@ -155,7 +174,6 @@ void MovieSystem::run() {
     }
 }
 
-// 독립적인 main3 실행 진입점
 int main() {
     MovieSystem system;
     system.run();
