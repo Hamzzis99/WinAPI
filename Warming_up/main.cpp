@@ -1,125 +1,188 @@
 #include "main.h"
 
-// 예외처리를 많이 할 것이다 (잘못된 명령어 또는 이미 입력한 번호)
-
 using namespace std;
 
-// 3번 qsort 비교 함수 구현. (중복 제거)
-int compareAlpha(const void* a, const void* b) {
-    unsigned char charA = std::tolower(*(const unsigned char*)a);
-    unsigned char charB = std::tolower(*(const unsigned char*)b);
-    if (charA < charB) return -1;
-    if (charA > charB) return 1;
-    return 0;
+// 문장 입력 칸
+void Sentence(string& text) {
+    while (!text.empty() && text.back() == '.') text.pop_back();
+    if (text.length() >= 40) text.resize(39);
+    text += '.';
 }
 
-// 4번 qsort 비교 함수 구현 (오름차순)
-int compareAsc(const void* a, const void* b) {
-    return (*(const char*)a - *(const char*)b);
-}
-
-// 솔트 번호로부터 정렬 해주는 기능.
-string soltNumber(std::string_view text) {
-    std::map<char, int> countMap;
-    for (char c : text) {
-        if (std::isalpha(static_cast<unsigned char>(c))) {
-            countMap[c]++;
-        }
+// [1, 2번] 공백 개수 증감 (이제 vector를 직접 조작합니다!)
+void SpacesManager(vector<int>& spaces, int delta) {
+    for (int& s : spaces) {
+        s = std::clamp(s + delta, 0, 5);
     }
-    std::string result;
+}
+
+// [3번] 알파벳 빈도 분석 (CharCmp 적용)
+string SortNumber(string_view text) {
+    map<char, int, CharCmp> countMap;
+    for (char c : text) {
+        if (isalpha(static_cast<unsigned char>(c))) countMap[c]++;
+    }
+    string result;
     for (const auto& [alphabet, count] : countMap) {
         result += alphabet;
-        result += std::to_string(count);
+        result += to_string(count);
     }
+    Sentence(result);
     return result;
 }
 
-// 본격적인 정렬.
-void sortInPlace(string& text) {
-    ranges::sort(text);
+// [4번] 단어 길이순 오름차순 정렬
+string SortByWordLength(string_view text) {
+    string temp(text);
+    while (!temp.empty() && temp.back() == '.') temp.pop_back();
+
+    stringstream ss(temp);
+    vector<string> words;
+    string w;
+    while (ss >> w) words.push_back(w);
+
+    ranges::stable_sort(words, ranges::less{}, &string::length);
+
+    string result;
+    for (size_t i = 0; i < words.size(); ++i) {
+        result += words[i];
+        if (i + 1 < words.size()) result += " ";
+    }
+    Sentence(result);
+    return result;
 }
 
-int main()
-{
-	string mySentence; // 문장을 입력할 수 있는 공간이며 이곳은 메모리에 저장해둘 것이다.
-	string command; // 명령어 입력 칸.
-	string inputBuffer; // 명령어 입력 버퍼
+int main() {
+    string mySentence;
+    cout << "Enter the sentence : ";
+    getline(cin, mySentence);
 
-	cout << "Enter the sentence : ";
-	getline(cin, mySentence); // 문장을 입력받는다. (띄어쓰기 포함)
+    Sentence(mySentence);
 
-    string currentSentence = mySentence;
-    bool isTransformed = false; // [추가] 3, 4번 변형 상태를 추적하는 플래그
-	cout << currentSentence << endl; // 입력받은 문장을 출력한다.
-		
+    // 단어와 공백을 분리해서 기억하는 창고
+    vector<string> words;
+    vector<int> spaces;
+
+    auto parseOriginal = [&]() {
+        words.clear();
+        spaces.clear();
+        string tempWord = "";
+        int tempSpace = 0;
+        for (char c : mySentence) {
+            if (c == ' ') {
+                if (!tempWord.empty()) {
+                    words.push_back(tempWord);
+                    tempWord = "";
+                }
+                tempSpace++;
+            }
+            else if (c == '.') continue;
+            else {
+                if (tempSpace > 0 && !words.empty()) {
+                    spaces.push_back(tempSpace);
+                    tempSpace = 0;
+                }
+                tempWord += c;
+            }
+        }
+        if (!tempWord.empty()) words.push_back(tempWord);
+        };
+
+    auto buildSentence = [&]() {
+        string result = "";
+        for (size_t i = 0; i < words.size(); ++i) {
+            result += words[i];
+            if (i < spaces.size()) {
+                result.append(spaces[i], ' ');
+            }
+        }
+        Sentence(result);
+        return result;
+        };
+
+    parseOriginal();
+    string currentSentence = buildSentence();
+    bool isTransformed = false;
 
     while (true) {
-        std::cout << "\n--------------------------------------";
-        std::cout << "\n[Current Sentence]: " << currentSentence;
-        std::cout << "\n(a~z, 0, 3, 5) ";
+        cout << "\n--------------------------------------";
+        cout << "\n[Current Sentence]: " << currentSentence;
+        cout << "\n(a~z, 1, 2, 3, 4, 5, 0): ";
 
-        if (!std::getline(std::cin, inputBuffer) || inputBuffer.empty()) continue;
-
+        string inputBuffer;
+        if (!getline(cin, inputBuffer) || inputBuffer.empty()) continue;
         char command = inputBuffer[0];
 
         if (command == '0') break;
+
         if (command == '5') {
-            currentSentence = mySentence;
-            std::cout << ">> Default.\n";
+            parseOriginal();
+            currentSentence = buildSentence();
+            isTransformed = false;
+            cout << ">> Default.\n";
             continue;
         }
-        // 3: 알파벳순 정렬 및 개수 표현
+
+        // 1번: 공백 줄이기 (SpacesManager 사용)
+        if (command == '1') {
+            SpacesManager(spaces, -1);
+            currentSentence = buildSentence();
+            isTransformed = false;
+            continue;
+        }
+
+        // 2번: 공백 늘리기 (SpacesManager 사용)
+        if (command == '2') {
+            SpacesManager(spaces, 1);
+            currentSentence = buildSentence();
+            isTransformed = false;
+            continue;
+        }
+
+        // 3번: 알파벳 빈도 분석
         if (command == '3') {
             if (isTransformed) {
-                currentSentence = mySentence; // 원래대로 복원
+                currentSentence = buildSentence();
                 isTransformed = false;
-                cout << ">> Restored to Original.\n";
             }
             else {
-                currentSentence = soltNumber(currentSentence); // 3번 실행
+                currentSentence = SortNumber(buildSentence());
                 isTransformed = true;
-                cout << ">> Processed with soltNumber.\n";
             }
             continue;
         }
 
-        // 4번: 정렬
+        // 4번: 단어 길이순 정렬
         if (command == '4') {
             if (isTransformed) {
-                currentSentence = mySentence; // 원래대로 복원
+                currentSentence = buildSentence();
                 isTransformed = false;
-                cout << ">> Restored to Original.\n";
             }
             else {
-                sortInPlace(currentSentence); // 4번 실행
+                currentSentence = SortByWordLength(buildSentence());
                 isTransformed = true;
-                cout << ">> Sorted In-Place.\n";
             }
             continue;
         }
 
-        // a~z 반전 코드
-        if (std::isalpha(static_cast<unsigned char>(command))) {
-            // C++26: ranges::to와 views::transform의 조합
-            currentSentence = currentSentence
-                | std::views::transform([command](char c) {
-                // 입력한 문자와 일치하는지 확인 (대소문자 구분 없이)
-                if (std::tolower(static_cast<unsigned char>(c)) ==
-                    std::tolower(static_cast<unsigned char>(command))) {
+        // a~z: 대소문자 반전
+        if (isalpha(static_cast<unsigned char>(command))) {
+            char targetCmd = tolower(static_cast<unsigned char>(command));
 
-                    // 현재가 소문자면 대문자로, 대문자면 소문자로 반전(Toggle)
-                    return std::islower(static_cast<unsigned char>(c))
-                        ? (char)std::toupper(static_cast<unsigned char>(c))
-                        : (char)std::tolower(static_cast<unsigned char>(c));
-                }
-                return c; // 일치하지 않는 문자는 그대로 통과
-                    })
-                | std::ranges::to<std::string>();
+            for (auto& w : words) {
+                w = w | views::transform([targetCmd](char c) {
+                    if (tolower(static_cast<unsigned char>(c)) == targetCmd) {
+                        return islower(static_cast<unsigned char>(c))
+                            ? (char)toupper(static_cast<unsigned char>(c))
+                            : (char)tolower(static_cast<unsigned char>(c));
+                    }
+                    return c;
+                    }) | ranges::to<string>();
+            }
 
-            std::cout << ">> '" << command << "' Changed.\n";
-            std::cout << "\n[Current Sentence]: " << currentSentence;
+            currentSentence = buildSentence();
+            isTransformed = false;
         }
     }
-	
-	return 0;
+    return 0;
 }
