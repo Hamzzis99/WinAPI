@@ -137,7 +137,6 @@ void MovieSystem::cmdRate() {
     }
 }
 
-// 메인 실행 루프
 void MovieSystem::run() {
     init();
     while (true) {
@@ -155,7 +154,6 @@ void MovieSystem::run() {
     }
 }
 
-// 독립적인 main3 실행 진입점
 int main() {
     MovieSystem system;
     system.run();

@@ -19,7 +19,7 @@ struct ReservationInfo {
     std::string movieTitle;
     std::string showtime;
     int row, col;
-    int numSeats; // [추가됨] 예약한 연속 좌석의 개수
+    int numSeats;
 };
 
 struct Theater {
