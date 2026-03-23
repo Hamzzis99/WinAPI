@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <tchar.h>
+#include <time.h>
+#include <math.h>
 
 HINSTANCE g_hInst;
 LPCTSTR lpszClass = L"windows program 1";
@@ -13,8 +15,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	MSG Message;
 	WNDCLASSEX WndClass;
 	g_hInst = hInstance;
-	DWORD dwStyle = WS_POPUPWINDOW |
-		WS_POPUP | WS_BORDER | WS_SYSMENU;
+	DWORD dwStyle = WS_OVERLAPPEDWINDOW |
+		WS_CAPTION |
+		WS_SYSMENU |
+		WS_THICKFRAME |
+		WS_HSCROLL |
+		WS_VSCROLL;
 
 	WndClass.cbSize = sizeof(WndClass);
 	WndClass.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
@@ -44,23 +50,63 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	PAINTSTRUCT ps;
 	HDC hDC;
+	PAINTSTRUCT ps;
+	TCHAR str[100];
+	static int N = 2;
+
+	RECT rect;
+	int sectionWidth, lineSpacing, startY1, startY2;
+	int dan, x, y;
 
 	switch (uMsg) {
 	case WM_CREATE:
+		srand((unsigned int)time(NULL));
+		N = rand() % 15 + 2;
 		break;
+
 	case WM_PAINT:
 		hDC = BeginPaint(hWnd, &ps);
+		GetClientRect(hWnd, &rect);
+
+		wsprintf(str, L"현재 화면은 %d 등분입니다.", N);
+		TextOut(hDC, 10, 10, str, lstrlen(str));
+
+		sectionWidth = rect.right / N;
+		lineSpacing = rect.bottom / 22;
+		startY1 = rect.bottom / 10;
+		startY2 = rect.bottom / 2 + (rect.bottom / 20);
+
+		for (int i = 0; i < N; i++) {
+			dan = 2 + i;
+			x = i * sectionWidth + 15;
+			y = startY1;
+
+			for (int j = 1; j <= 9; j++) {
+				wsprintf(str, L"%d x %d = %d", dan, j, dan * j);
+				TextOut(hDC, x, y, str, lstrlen(str));
+				y += lineSpacing;
+			}
+		}
+
+		for (int i = 0; i < N; i++) {
+			dan = (2 + N - 1) - i;
+			x = i * sectionWidth + 15;
+			y = startY2;
+
+			for (int j = 1; j <= 9; j++) {
+				wsprintf(str, L"%d x %d = %d", dan, j, dan * j);
+				TextOut(hDC, x, y, str, lstrlen(str));
+				y += lineSpacing;
+			}
+		}
+
 		EndPaint(hWnd, &ps);
 		break;
-	case WM_LBUTTONDBLCLK:
-		MessageBox(hWnd, L"화면을 더블 클릭하셨군요!", L"더블 클릭 이벤트", MB_OK | MB_ICONINFORMATION);
-		break;
+
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
-
