@@ -1,140 +1,113 @@
 #include <windows.h>
 #include <tchar.h>
 #include <time.h>
-#include <math.h>
 
 HINSTANCE g_hInst;
 LPCTSTR lpszClass = L"windows program 1";
-LPCTSTR lpszWindowName = L"windows program 3";
+LPCTSTR lpszWindowName = L"windows program 2-4-2";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
-	HWND hWnd;
-	MSG Message;
-	WNDCLASSEX WndClass;
-	g_hInst = hInstance;
-	DWORD dwStyle = WS_OVERLAPPEDWINDOW |
-		WS_CAPTION |
-		WS_SYSMENU |
-		WS_THICKFRAME |
-		WS_HSCROLL |
-		WS_VSCROLL;
+    HWND hWnd;
+    MSG Message;
+    WNDCLASSEX WndClass;
+    g_hInst = hInstance;
 
-	WndClass.cbSize = sizeof(WndClass);
-	WndClass.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-	WndClass.lpfnWndProc = (WNDPROC)WndProc;
-	WndClass.cbClsExtra = 0;
-	WndClass.cbWndExtra = 0;
-	WndClass.hInstance = hInstance;
-	WndClass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-	WndClass.hCursor = LoadCursor(NULL, IDC_APPSTARTING);
-	WndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-	WndClass.lpszMenuName = NULL;
-	WndClass.lpszClassName = lpszClass;
-	WndClass.hIconSm = LoadIcon(NULL, IDI_ERROR);
-	RegisterClassEx(&WndClass);
+    DWORD dwStyle = WS_OVERLAPPEDWINDOW;
 
-	hWnd = CreateWindow(lpszClass, lpszWindowName, dwStyle, 100, 50, 800, 600, NULL, (HMENU)NULL, hInstance, NULL);
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+    WndClass.cbSize = sizeof(WndClass);
+    WndClass.style = CS_HREDRAW | CS_VREDRAW;
+    WndClass.lpfnWndProc = (WNDPROC)WndProc;
+    WndClass.cbClsExtra = 0;
+    WndClass.cbWndExtra = 0;
+    WndClass.hInstance = hInstance;
+    WndClass.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    WndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+    WndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+    WndClass.lpszMenuName = NULL;
+    WndClass.lpszClassName = lpszClass;
+    WndClass.hIconSm = LoadIcon(NULL, IDI_ERROR);
+    RegisterClassEx(&WndClass);
 
-	while (GetMessage(&Message, NULL, 0, 0))
-	{
-		TranslateMessage(&Message);
-		DispatchMessage(&Message);
-	}
-	return Message.wParam;
+    hWnd = CreateWindow(lpszClass, lpszWindowName, dwStyle, 100, 50, 800, 600, NULL, (HMENU)NULL, hInstance, NULL);
+    ShowWindow(hWnd, nCmdShow);
+    UpdateWindow(hWnd);
+
+    while (GetMessage(&Message, NULL, 0, 0)) {
+        TranslateMessage(&Message);
+        DispatchMessage(&Message);
+    }
+    return (int)Message.wParam;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	HDC hDC;
-	PAINTSTRUCT ps;
-	TCHAR str[100];
+    HDC hDC;
+    PAINTSTRUCT ps;
+    SIZE size;
+    RECT clientRect;
 
-	static int N = 2;
-	static int mode = 0;
-	static COLORREF danColor[20];
-	static COLORREF rowColor[10];
+    static int rectX, rectY, rectW, rectH;
+    static COLORREF textColor;
+    static TCHAR randomStr[2000];
 
-	RECT rect;
-	int sectionWidth, lineSpacing, startY1, startY2;
-	int dan, x, y;
+    switch (uMsg) {
+    case WM_CREATE:
+    {
+        srand((unsigned int)time(NULL));
 
-	switch (uMsg) {
-	case WM_CREATE:
-		srand((unsigned int)time(NULL));
-		N = rand() % 15 + 2;
-		mode = rand() % 2;
+        // 800x600 윈도우 크기를 '절대적인 기준'으로 잡고 랜덤 수식 적용
+        rectW = rand() % 299 + 101;
+        rectH = rand() % 199 + 101;
+        rectX = rand() % 399 + 1;
+        rectY = rand() % 299 + 1;
 
-		for (int k = 2; k <= 17; k++) {
-			danColor[k] = RGB(rand() % 200, rand() % 200, rand() % 200);
-		}
+        textColor = RGB(rand() % 256, rand() % 256, rand() % 256);
 
-		for (int j = 1; j <= 9; j++) {
-			rowColor[j] = RGB(rand() % 200, rand() % 200, rand() % 200);
-		}
-		break;
+        for (int i = 0; i < 1999; i++) {
+            randomStr[i] = (TCHAR)(rand() % 26 + 'A');
+        }
+        randomStr[1999] = '\0';
+        break;
+    }
 
-	case WM_PAINT:
-		hDC = BeginPaint(hWnd, &ps);
-		GetClientRect(hWnd, &rect);
-		SetBkMode(hDC, TRANSPARENT);
+    case WM_PAINT:
+    {
+        hDC = BeginPaint(hWnd, &ps);
 
-		if (mode == 1) {
-			wsprintf(str, L"현재 화면은 %d 등분입니다. (홀수 모드: 단별 색상)", N);
-		}
-		else {
-			wsprintf(str, L"현재 화면은 %d 등분입니다. (짝수 모드: 줄별 색상)", N);
-		}
-		SetTextColor(hDC, RGB(0, 0, 0));
-		TextOut(hDC, 10, 10, str, lstrlen(str));
+        GetClientRect(hWnd, &clientRect);
 
-		sectionWidth = rect.right / N;
-		lineSpacing = rect.bottom / 22;
-		startY1 = rect.bottom / 10;
-		startY2 = rect.bottom / 2 + (rect.bottom / 20);
+        SetBkMode(hDC, TRANSPARENT);
+        SetTextColor(hDC, textColor);
 
-		for (int i = 0; i < N; i++) {
-			dan = 2 + i;
-			x = i * sectionWidth + 15;
-			y = startY1;
+        GetTextExtentPoint32(hDC, L"A", 1, &size);
+        int charWidth = size.cx;
+        int charHeight = size.cy;
 
-			if (mode == 1) SetTextColor(hDC, danColor[dan]);
+        int charIdx = 0;
 
-			for (int j = 1; j <= 9; j++) {
-				if (mode == 0) SetTextColor(hDC, rowColor[j]);
+        for (int x = rectX; x <= rectX + rectW; x += charWidth) {
+            TextOut(hDC, x, rectY, &randomStr[charIdx++ % 1999], 1);
+        }
+        for (int x = rectX; x <= rectX + rectW; x += charWidth) {
+            TextOut(hDC, x, rectY + rectH, &randomStr[charIdx++ % 1999], 1);
+        }
+        for (int y = rectY + charHeight; y < rectY + rectH; y += charHeight) {
+            TextOut(hDC, rectX, y, &randomStr[charIdx++ % 1999], 1);
+        }
+        for (int y = rectY + charHeight; y < rectY + rectH; y += charHeight) {
+            TextOut(hDC, rectX + rectW, y, &randomStr[charIdx++ % 1999], 1);
+        }
 
-				wsprintf(str, L"%d x %d = %d", dan, j, dan * j);
-				TextOut(hDC, x, y, str, lstrlen(str));
-				y += lineSpacing;
-			}
-		}
+        EndPaint(hWnd, &ps);
+        break;
+    }
 
-		for (int i = 0; i < N; i++) {
-			dan = (2 + N - 1) - i;
-			x = i * sectionWidth + 15;
-			y = startY2;
-
-			if (mode == 1) SetTextColor(hDC, danColor[dan]);
-
-			for (int j = 1; j <= 9; j++) {
-				if (mode == 0) SetTextColor(hDC, rowColor[j]);
-
-				wsprintf(str, L"%d x %d = %d", dan, j, dan * j);
-				TextOut(hDC, x, y, str, lstrlen(str));
-				y += lineSpacing;
-			}
-		}
-
-		EndPaint(hWnd, &ps);
-		break;
-
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
-	}
-	return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    }
+    return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
