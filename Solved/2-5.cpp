@@ -7,7 +7,7 @@
 
 HINSTANCE g_hInst;
 LPCTSTR lpszClass = L"windows program 1";
-LPCTSTR lpszWindowName = L"windows program 2-5";
+LPCTSTR lpszWindowName = L"windows programing 2-5";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
@@ -41,7 +41,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
 	}
-	return Message.wParam;
+	return (int)Message.wParam;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -52,7 +52,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	static TCHAR lines[MAX_LINES][MAX_CHARS + 1];
 	static int counts[MAX_LINES];
-	static int currentLine = 0;
+	static bool isDone = false;
 
 	static int startX, startY;
 	static COLORREF textColor;
@@ -65,8 +65,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		startY = rand() % 501;
 		textColor = RGB(rand() % 256, rand() % 256, rand() % 256);
 
-		currentLine = 0;
 		for (int i = 0; i < MAX_LINES; i++) counts[i] = 0;
+		isDone = false;
 
 		CreateCaret(hWnd, NULL, 5, 15);
 		ShowCaret(hWnd);
@@ -77,16 +77,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SetBkMode(hDC, TRANSPARENT);
 		SetTextColor(hDC, textColor);
 
-		for (int i = 0; i <= currentLine; i++) {
-			TextOut(hDC, startX, startY + (i * 20), lines[i], counts[i]);
+		for (int i = 0; i < MAX_LINES; i++) {
+			if (counts[i] > 0) {
+				TextOut(hDC, startX, startY + (i * 20), lines[i], counts[i]);
+			}
 		}
 
-		if (counts[currentLine] == 0) {
-			SetCaretPos(startX, startY + (currentLine * 20));
-		}
-		else {
-			GetTextExtentPoint32(hDC, lines[currentLine], counts[currentLine], &size);
-			SetCaretPos(startX + size.cx, startY + (currentLine * 20));
+		if (!isDone) {
+			if (counts[0] == 0) {
+				SetCaretPos(startX, startY);
+			}
+			else {
+				GetTextExtentPoint32(hDC, lines[0], counts[0], &size);
+				SetCaretPos(startX + size.cx, startY);
+			}
 		}
 
 		EndPaint(hWnd, &ps);
@@ -94,28 +98,67 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	case WM_CHAR:
 		if (wParam == VK_ESCAPE) {
-			PostQuitMessage(0);
-		}
-		else if (wParam == VK_BACK) {
-			if (counts[currentLine] > 0) {
-				counts[currentLine]--;
-			}
-		}
-		else if (wParam == VK_RETURN) {
-			if (currentLine < MAX_LINES - 1) {
-				currentLine++;
-			}
-		}
-		else {
-			if ((wParam >= 'a' && wParam <= 'z') || (wParam >= 'A' && wParam <= 'Z')) {
+			startX = rand() % 601;
+			startY = rand() % 501;
+			textColor = RGB(rand() % 256, rand() % 256, rand() % 256);
+			for (int i = 0; i < MAX_LINES; i++) counts[i] = 0;
 
-				if (counts[currentLine] < MAX_CHARS) {
-					lines[currentLine][counts[currentLine]++] = (TCHAR)wParam;
+			if (isDone) {
+				isDone = false;
+				CreateCaret(hWnd, NULL, 5, 15);
+				ShowCaret(hWnd);
+			}
+		}
+		else if (!isDone) {
+			if (wParam == VK_BACK) {
+				if (counts[0] > 0) {
+					counts[0]--;
 				}
-
-				if (counts[currentLine] == MAX_CHARS) {
-					if (currentLine < MAX_LINES - 1) {
-						currentLine++;
+			}
+			else if (wParam == VK_RETURN) {
+				if (counts[0] > 0) {
+					if (counts[MAX_LINES - 1] > 0) {
+						isDone = true;
+						HideCaret(hWnd);
+						DestroyCaret();
+					}
+					else {
+						for (int i = MAX_LINES - 1; i > 0; i--) {
+							for (int j = 0; j < counts[i - 1]; j++) {
+								lines[i][j] = lines[i - 1][j];
+							}
+							counts[i] = counts[i - 1];
+						}
+						counts[0] = 0;
+					}
+				}
+			}
+			else {
+				if ((wParam >= 'a' && wParam <= 'z') || (wParam >= 'A' && wParam <= 'Z')) {
+					if (counts[0] >= MAX_CHARS) {
+						if (counts[MAX_LINES - 1] > 0) {
+							isDone = true;
+							HideCaret(hWnd);
+							DestroyCaret();
+						}
+						else {
+							for (int i = MAX_LINES - 1; i > 0; i--) {
+								for (int j = 0; j < counts[i - 1]; j++) {
+									lines[i][j] = lines[i - 1][j];
+								}
+								counts[i] = counts[i - 1];
+							}
+							counts[0] = 0;
+							lines[0][counts[0]++] = (TCHAR)wParam;
+						}
+					}
+					else {
+						lines[0][counts[0]++] = (TCHAR)wParam;
+						if (counts[0] == MAX_CHARS && counts[MAX_LINES - 1] > 0) {
+							isDone = true;
+							HideCaret(hWnd);
+							DestroyCaret();
+						}
 					}
 				}
 			}
