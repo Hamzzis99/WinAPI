@@ -44,6 +44,10 @@ int  GetQuadIndex(int mx, int my);
 void DrawBgShape(HDC hDC, QUAD* q);
 void DrawRotShape(HDC hDC, QUAD* q, int x, int y);
 
+// ▼ [수정] 배경 도형의 외곽선을 따라가는 궤도 좌표를 돌려주는 헬퍼 함수 선언
+static void GetOrbitPos(QUAD* q, int* outX, int* outY);
+// ▲ [수정 끝]
+
 COLORREF InvertColor(COLORREF c)
 {
     return RGB(255 - GetRValue(c), 255 - GetGValue(c), 255 - GetBValue(c));
@@ -157,6 +161,111 @@ void DrawRotShape(HDC hDC, QUAD* q, int x, int y)
     else
         Rectangle(hDC, x - r, y - r, x + r, y + r);
 }
+
+// ▼ [수정] 배경 도형별로 실제 외곽선(테두리)을 따라가는 궤도 좌표를 계산.
+//   - theta는 기존처럼 direction * step 으로 증감하지만, 이제는 각도가 아니라
+//     "궤도 둘레를 따르는 진행 매개변수"로 해석한다.
+//   - 원  : 기존과 동일하게 (cx + r*cos(theta), cy + r*sin(theta))
+//   - 사각형 / 삼각형 : theta 를 [0, 2π)로 정규화한 뒤 u = theta/(2π) 를
+//     둘레 상의 진행 비율로 보고 변(edge)을 선형 보간하여 위치를 구한다.
+//   - 시작점과 진행 방향을 원형 궤도와 시각적으로 맞추기 위해,
+//     * 사각형은 우변 중점(cx+r, cy)에서 출발하여 시계방향(화면 좌표 기준)으로 진행
+//     * 삼각형은 위 꼭짓점(cx, cy-r)에서 출발하여 시계방향으로 진행
+static void GetOrbitPos(QUAD* q, int* outX, int* outY)
+{
+    int r = q->orbitR;
+
+    // theta 를 [0, 2π) 로 정규화
+    double t = fmod(q->theta, 2.0 * PI);
+    if (t < 0.0) t += 2.0 * PI;
+    double u = t / (2.0 * PI);  // [0, 1) 둘레 진행 비율
+
+    switch (q->bgShape)
+    {
+    case BG_CIRCLE:
+    {
+        // 원형 궤도: 기존 동작 유지
+        *outX = q->cx + (int)(r * cos(q->theta));
+        *outY = q->cy + (int)(r * sin(q->theta));
+        break;
+    }
+    case BG_RECT:
+    {
+        // 정사각형 테두리 궤도
+        //   구간 분할(시계방향, 우변 중점에서 시작):
+        //     u ∈ [0,       0.125) : 우변 중점 → 우하 모서리
+        //     u ∈ [0.125,   0.375) : 우하       → 좌하
+        //     u ∈ [0.375,   0.625) : 좌하       → 좌상
+        //     u ∈ [0.625,   0.875) : 좌상       → 우상
+        //     u ∈ [0.875,   1.0  ) : 우상       → 우변 중점
+        double x, y;
+        if (u < 0.125) {
+            double s = u / 0.125;
+            x = q->cx + r;
+            y = q->cy + s * r;
+        }
+        else if (u < 0.375) {
+            double s = (u - 0.125) / 0.25;
+            x = q->cx + r - s * 2.0 * r;
+            y = q->cy + r;
+        }
+        else if (u < 0.625) {
+            double s = (u - 0.375) / 0.25;
+            x = q->cx - r;
+            y = q->cy + r - s * 2.0 * r;
+        }
+        else if (u < 0.875) {
+            double s = (u - 0.625) / 0.25;
+            x = q->cx - r + s * 2.0 * r;
+            y = q->cy - r;
+        }
+        else {
+            double s = (u - 0.875) / 0.125;
+            x = q->cx + r;
+            y = q->cy - r + s * r;
+        }
+        *outX = (int)x;
+        *outY = (int)y;
+        break;
+    }
+    case BG_TRI:
+    {
+        // 삼각형 테두리 궤도
+        //   꼭짓점: A=(cx, cy-r) 상단, B=(cx+r, cy+r) 우하, C=(cx-r, cy+r) 좌하
+        //   시계방향(A → B → C → A) 으로 3등분 진행:
+        //     u ∈ [0,     1/3) : A → B (우사변)
+        //     u ∈ [1/3,   2/3) : B → C (밑변)
+        //     u ∈ [2/3,   1  ) : C → A (좌사변)
+        double ax = q->cx, ay = q->cy - r;
+        double bxv = q->cx + r, byv = q->cy + r;
+        double cxv = q->cx - r, cyv = q->cy + r;
+        double x, y;
+        if (u < 1.0 / 3.0) {
+            double s = u / (1.0 / 3.0);
+            x = ax + (bxv - ax) * s;
+            y = ay + (byv - ay) * s;
+        }
+        else if (u < 2.0 / 3.0) {
+            double s = (u - 1.0 / 3.0) / (1.0 / 3.0);
+            x = bxv + (cxv - bxv) * s;
+            y = byv + (cyv - byv) * s;
+        }
+        else {
+            double s = (u - 2.0 / 3.0) / (1.0 / 3.0);
+            x = cxv + (ax - cxv) * s;
+            y = cyv + (ay - cyv) * s;
+        }
+        *outX = (int)x;
+        *outY = (int)y;
+        break;
+    }
+    default:
+        *outX = q->cx;
+        *outY = q->cy;
+        break;
+    }
+}
+// ▲ [수정 끝]
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -311,8 +420,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 SelectObject(hDC, hOld2);
                 DeleteObject(hCenterBrush);
 
-                int rx = q->cx + (int)(q->orbitR * cos(q->theta));
-                int ry = q->cy + (int)(q->orbitR * sin(q->theta));
+                // ▼ [수정] 기존에는 배경 도형과 무관하게 원형(cos/sin) 궤도로만 돌았으나,
+                //         이제는 배경 도형의 테두리를 따라가는 궤도 좌표를 사용한다.
+                int rx, ry;
+                GetOrbitPos(q, &rx, &ry);
+                // ▲ [수정 끝]
 
                 HBRUSH hRotBrush = CreateSolidBrush(useRotColor);
                 HBRUSH hOld3 = (HBRUSH)SelectObject(hDC, hRotBrush);
